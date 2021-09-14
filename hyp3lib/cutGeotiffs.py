@@ -4,12 +4,21 @@ import re
 import os
 import argparse
 from osgeo import gdal
+import geopandas as gpd
 
 
 def getPixSize(fi):
     (x1,y1,t1,p1) = saa.read_gdal_file_geo(saa.open_gdal_file(fi))
     return (t1[1])
 
+def getFeatureCorners(fi):
+    feature = gpd.read_file(fi)
+    minx, miny, maxx, maxy = feature.total_bounds
+    ullon1 = minx
+    ullat1 = maxy
+    lrlon1 = maxx
+    lrlat1 = miny
+    return (ullon1,ullat1,lrlon1,lrlat1)
 
 def getCorners(fi):
     (x1,y1,t1,p1) = saa.read_gdal_file_geo(saa.open_gdal_file(fi))
@@ -21,12 +30,7 @@ def getCorners(fi):
 
 
 def getOverlap(coords,fi):
-    (x1,y1,t1,p1) = saa.read_gdal_file_geo(saa.open_gdal_file(fi))
-
-    ullon1 = t1[0]
-    ullat1 = t1[3]
-    lrlon1 = t1[0] + x1*t1[1]
-    lrlat1 = t1[3] + y1*t1[5]
+    ullon1, ullat1, lrlon1, lrlat1 = getCorners(fi)
 
     ullon2 = coords[0]
     ullat2 = coords[1]
@@ -41,7 +45,7 @@ def getOverlap(coords,fi):
     return (ullon,ullat,lrlon,lrlat)
 
 
-def cutFiles(arg):
+def cutFiles(arg,vector):
 
     if len(arg) == 1:
         print("Nothing to do!!!  Exiting...")
@@ -91,6 +95,10 @@ def cutFiles(arg):
     coords = getCorners(arg[0])
     for x in range (len(arg)-1):
         coords = getOverlap(coords,arg[x+1])
+    
+    if vector:
+        vector_coords = getFeatureCorners(vector)
+        coords = getOverlap(coords,vector_coords)
 
     # Check to make sure there was some overlap
     print("Clipping coordinates: {}".format(coords))
@@ -124,11 +132,15 @@ def main():
     )
     parser.add_argument(
         "infiles", nargs='+',
-        help="Geotiff files to clip; output will be have _clip appended to the file name"
+        help="Geotiff files to clip; output will have _clip appended to the file name"
+    )
+    parser.add_argument(
+        "-v", dest="vector", nargs="?", default=None,
+        help="Vector feature to act as bounding box"
     )
     args = parser.parse_args()
 
-    cutFiles(args.infiles)
+    cutFiles(args.infiles, arg.vector)
 
 
 if __name__ == "__main__":
