@@ -11,14 +11,6 @@ def getPixSize(fi):
     (x1,y1,t1,p1) = saa.read_gdal_file_geo(saa.open_gdal_file(fi))
     return (t1[1])
 
-def getFeatureCorners(fi):
-    feature = gpd.read_file(fi)
-    minx, miny, maxx, maxy = feature.total_bounds
-    ullon1 = minx
-    ullat1 = maxy
-    lrlon1 = maxx
-    lrlat1 = miny
-    return (ullon1,ullat1,lrlon1,lrlat1)
 
 def getCorners(fi):
     (x1,y1,t1,p1) = saa.read_gdal_file_geo(saa.open_gdal_file(fi))
@@ -97,8 +89,27 @@ def cutFiles(arg,vector):
         coords = getOverlap(coords,arg[x+1])
     
     if vector:
-        vector_coords = getFeatureCorners(vector)
-        coords = getOverlap(coords,vector_coords)
+        (zone,hemi) = [t(s) for t,s in zip((int,str), re.search("(\d+)(.)",p1[ptr:]).groups())]
+        if hemi == "N":
+            proj = 'EPSG:326%02d' % int(zone)
+        else:
+            print('here')
+            proj = 'EPSG:327%02d' % int(zone)
+        
+        feature = gpd.read_file(vector)
+        feature_crs = f'EPSG:{feature.crs.to_epsg()}'
+        if proj != feature.crs:
+            feature = feature.to_crs(proj)
+
+        ullon1, lrlat1, lrlon1, ullat1 = feature.total_bounds
+        ullon2, ullat2, lrlon2, lrlat2 = coords
+
+        ullat = min(ullat1,ullat2)
+        ullon = max(ullon1,ullon2)
+        lrlat = max(lrlat1,lrlat2)
+        lrlon = min(lrlon1,lrlon2)
+
+        coords = (ullon,ullat,lrlon,lrlat)
 
     # Check to make sure there was some overlap
     print("Clipping coordinates: {}".format(coords))
@@ -140,7 +151,7 @@ def main():
     )
     args = parser.parse_args()
 
-    cutFiles(args.infiles, arg.vector)
+    cutFiles(args.infiles, args.vector)
 
 
 if __name__ == "__main__":
